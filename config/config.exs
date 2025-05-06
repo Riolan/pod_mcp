@@ -7,6 +7,19 @@
 # General application configuration
 import Config
 
+config :podcast_mcp, :scopes,
+  user: [
+    default: true,
+    module: PodcastMcp.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :id,
+    schema_table: :users,
+    test_data_fixture: PodcastMcp.AccountsFixtures,
+    test_login_helper: :register_and_log_in_user
+  ]
+
 config :podcast_mcp,
   ecto_repos: [PodcastMcp.Repo],
   generators: [timestamp_type: :utc_datetime]
