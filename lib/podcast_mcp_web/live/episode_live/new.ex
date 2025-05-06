@@ -25,13 +25,18 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
       )
 
     {:ok, socket}
-  end
 
+
+  end
   @impl true
   def render(assigns) do
-    IO.inspect(assigns.uploads.audio, label: "@uploads.audio in render")
-    IO.inspect(assigns.form[:audio], label: "@form[:audio] (FormField) in render") # Specifically the field part
-    IO.inspect(assigns.uploads.audio, label: "@uploads.audio in render (confirming)") # To see the uploads part again
+    # Add safe debugging checks to avoid errors
+    audio_uploads = Map.get(assigns, :uploads, %{}) |> Map.get(:audio)
+
+    if audio_uploads do
+      IO.inspect(audio_uploads, label: "@uploads.audio in render")
+      IO.inspect(Map.get(assigns.form || %{}, :audio), label: "@form[:audio] (FormField) in render")
+    end
 
     ~H"""
     <.header>
@@ -47,36 +52,47 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
       <.input field={@form[:title]} type="text" label="Episode Title" required />
 
       <.input
-        field={:audio} {# Virtual field for the upload control #}
+        field={@form[:audio]}
         type="file"
         label="Audio File"
-        upload={@uploads.audio} {# Links to allow_upload(:audio) #}
         required
       />
 
-      {# Display upload progress and errors for the single entry #}
-      <div :for={entry <- @uploads.audio.entries  || []} >
-        <.live_file_input upload={@uploads.audio} entry_ref={entry.ref} class="hidden"/>
-        <p>
-          <%= entry.client_name %> (<%= div(entry.progress, 1) %>%)
-        </p>
-        {# Show errors for this specific entry #}
-        <p :for={err <- upload_errors(@uploads.audio, entry) || []}>
-          <span class="text-red-600"><%= error_to_string(err) %></span>
-        </p>
-        <progress value={entry.progress} max="100" class="w-full"> <%= entry.progress %>% </progress>
+      <div class="mt-4">
+        <.live_file_input upload={@uploads.audio} class="hidden" />
+        <div class="py-4 px-6 bg-gray-100 rounded cursor-pointer text-center" phx-click={JS.dispatch("click", to: "##{@uploads.audio.ref}")}>
+          <div class="text-sm font-medium">Click or drag files here</div>
+          <div class="text-xs text-gray-500">MP3, WAV, M4A, OGG, AAC (max 500MB)</div>
+        </div>
       </div>
 
-      {# Show general upload errors (e.g., too many files, wrong type before selection) #}
-      <p :for={err <- upload_errors(@uploads.audio) || []}>
-        <span class="text-red-600"><%= error_to_string(err) %></span>
-      </p>
+      <%= if assigns[:uploads] && assigns.uploads[:audio] && assigns.uploads.audio.entries do %>
+        <div :for={entry <- assigns.uploads.audio.entries}>
+          <.live_file_input upload={@uploads.audio} entry_ref={entry.ref} class="hidden"/>
+          <p>
+            <%= entry.client_name %> (<%= div(entry.progress, 1) %>%)
+          </p>
+          <%= for err <- upload_errors(@uploads.audio, entry) do %>
+            <p class="text-red-600"><%= error_to_string(err) %></p>
+          <% end %>
+          <progress value={entry.progress} max="100" class="w-full"> <%= entry.progress %>% </progress>
+        </div>
+      <% end %>
 
+      <%= if assigns[:uploads] && assigns.uploads[:audio] do %>
+        <%= for err <- upload_errors(@uploads.audio) do %>
+          <p class="text-red-600"><%= error_to_string(err) %></p>
+        <% end %>
+      <% end %>
 
+      <div class="mt-6">
+        <.button type="submit" phx-disable-with="Uploading...">
+          Upload Episode
+        </.button>
+      </div>
     </.form>
     """
   end
-
   # --- Event Handlers ---
 
   @impl true
@@ -130,6 +146,7 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
   defp error_to_string(:too_large), do: "Too large"
   defp error_to_string(:not_accepted), do: "Invalid file type"
   defp error_to_string(:too_many_files), do: "Only one file allowed"
+  defp error_to_string(err), do: "Error: #{inspect(err)}"
 
   # Optional progress handler (can be added to simple_form `upload_progress` attr if needed)
   # defp upload_progress(entry, bytes_uploaded, total_bytes) do
