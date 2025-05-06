@@ -65,6 +65,8 @@ config :tailwind,
     cd: Path.expand("..", __DIR__)
   ]
 
+
+
 # Configures Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
@@ -76,3 +78,11 @@ config :phoenix, :json_library, Jason
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
+
+
+config :mime, :types, %{
+  "audio/mp4" => ["m4a"],
+  "audio/ogg" => ["ogg"],
+  # Add other custom types here if needed, for example:
+  # "audio/aac" => ["aac"] # If .aac also causes issues later
+}

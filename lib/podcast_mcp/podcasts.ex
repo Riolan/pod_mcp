@@ -5,7 +5,7 @@ defmodule PodcastMcp.Podcasts do
 
   import Ecto.Query, warn: false
   alias PodcastMcp.Repo
-
+  alias PodcastMcp.Podcasts.Episode
   alias PodcastMcp.Podcasts.Podcast
   alias PodcastMcp.Accounts.Scope
 
@@ -144,4 +144,24 @@ defmodule PodcastMcp.Podcasts do
 
     Podcast.changeset(podcast, attrs, scope)
   end
+
+
+
+   @doc """
+  Returns an `%Ecto.Changeset{}` for tracking episode changes.
+
+  Typically used to build forms.
+
+  ## Examples
+
+      iex> change_episode(%Episode{})
+      %Ecto.Changeset{data: %Episode{}}
+
+  """
+  def change_episode(%Episode{} = episode, attrs \\ %{}) do
+    Episode.changeset(episode, attrs)
+  end
+
+
+
 end
