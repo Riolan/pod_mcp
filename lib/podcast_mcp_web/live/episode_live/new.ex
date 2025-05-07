@@ -4,32 +4,66 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
 
   alias PodcastMcp.Podcasts
   alias PodcastMcp.Podcasts.Episode
+  alias PodcastMcp.Accounts.User
   alias ExAws.S3 # For S3 operations
   alias MIME # For MIME type detection
   # Assuming phx.gen.auth setup includes an on_mount hook like UserAuth.fetch_current_user
   # which assigns `:current_user` to the socket if logged in.
 
   @impl true
-  def mount(_params, _session, socket) do
-    # We assume current_user is assigned by an :on_mount hook from phx.gen.auth
-    # If not assigned, the route protection should have already redirected.
+  def mount(_params, session, socket) do
+    # Assuming your auth flow (e.g., UserAuth on_mount hook) assigns :current_user
+    # or :current_scope with the user.
+    # Let's ensure we get the actual User struct.
+    current_user =
+      cond do
+        socket.assigns[:current_user] -> socket.assigns.current_user
+        socket.assigns[:current_scope] && socket.assigns.current_scope.user -> socket.assigns.current_scope.user
+        true -> nil # Should be handled by route protection
+      end
 
+    if is_nil(current_user) do
+      # This should ideally not happen if route is protected.
+      # Consider a redirect or error if critical.
+      # For now, we'll let it proceed but podcast_options will be empty.
+      IO.puts("Warning: current_user is nil in mount of EpisodeLive.New")
+    end
+
+    # Fetch user's podcasts only if current_user is available
+    user_podcasts =
+      if current_user do
+        Podcasts.list_user_podcasts(current_user)
+      else
+        []
+      end
+
+    # Prepare options for the select input
+    # The format should be [ {"Display Name", value}, ... ]
+    podcast_options =
+      Enum.map(user_podcasts, fn podcast ->
+        {podcast.title, podcast.id}
+      end)
+
+    # Initial empty changeset for the form, now including podcast_id
     changeset = Podcasts.change_episode(%Episode{})
 
     socket =
       socket
       |> assign(:form, to_form(changeset))
+      |> assign(:podcast_options, podcast_options) # For the dropdown
+      |> assign_new(:current_user, fn -> current_user end) # Ensure current_user is consistently assigned
       |> allow_upload(:audio,
-        accept: ~w(.mp3 .wav .m4a .ogg .aac), # Or other formats you want
+        accept: ~w(.mp3 .wav .m4a .ogg .aac),
         max_entries: 1,
-        max_file_size: 500 * 1024 * 1024, # 500MB limit - adjust as needed
+        max_file_size: 500 * 1024 * 1024, # 500MB
         auto_upload: true
       )
 
     {:ok, socket}
-
-
   end
+
+
+
   @impl true
   def render(assigns) do
     # Add safe debugging checks to avoid errors
@@ -54,6 +88,28 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
       <.input field={@form[:title]} type="text" label="Episode Title" required />
 
 
+      <%!-- Add Podcast Selection Dropdown --%>
+      <%= if Enum.any?(@podcast_options) do %>
+        <.input
+          field={@form[:podcast_id]}
+          type="select"
+          label="Podcast"
+          prompt="Choose a podcast..."
+          options={@podcast_options}
+          required
+        />
+      <% else %>
+        <div class="my-4 p-4 border border-yellow-300 bg-yellow-50 rounded">
+          <p class="font-semibold text-yellow-700">No Podcasts Found</p>
+          <p class="text-sm text-yellow-600">
+            You need to create a podcast before you can upload an episode.
+            <%!-- Optionally, add a link to a "new podcast" page --%>
+            <%!-- <.link href={~p"/podcasts/new"}>Create a Podcast</.link> --%>
+          </p>
+        </div>
+      <% end %>
+
+      <%!-- Your existing custom file input trigger --%>
       <div class="mt-4">
         <.live_file_input upload={@uploads.audio} class="hidden" />
         <div class="py-4 px-6 bg-gray-100 rounded cursor-pointer text-center" phx-click={JS.dispatch("click", to: "##{@uploads.audio.ref}")}>
@@ -62,6 +118,7 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
         </div>
       </div>
 
+      <%!-- Your existing loops for displaying upload entries and errors --%>
       <%= if assigns[:uploads] && assigns.uploads[:audio] && assigns.uploads.audio.entries do %>
         <div :for={entry <- assigns.uploads.audio.entries}>
           <.live_file_input upload={@uploads.audio} entry_ref={entry.ref} class="hidden"/>
@@ -82,7 +139,7 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
       <% end %>
 
       <div class="mt-6">
-        <.button type="submit" phx-disable-with="Uploading...">
+        <.button type="submit" phx-disable-with="Uploading..." disabled={Enum.empty?(@podcast_options)}>
           Upload Episode
         </.button>
       </div>
@@ -178,37 +235,62 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
           end
 
 
-      # Since max_entries: 1, we expect a list with one result (or an error that led to an empty list handled above)
-        [%{minio_url: minio_url, object_key: _object_key, original_name: _original_name} | _] ->
+          [%{minio_url: minio_url} | _rest_of_results] -> # Assuming this is the current structure
           # S3 Upload was successful, proceed to save to database
 
-          # --- CRITICAL: How to get podcast_id? ---
-          # This is a placeholder and NEEDS to be implemented or decided upon.
-          podcast_id_to_assign = 1 # TEMPORARY - REPLACE WITH REAL LOGIC
+          # Get podcast_id from the form parameters
+          # episode_params will now contain "podcast_id" if the select input was part of the form
+          podcast_id_from_form = episode_params["podcast_id"]
+          current_episode_title = episode_params["title"]
 
-          episode_attrs = %{
-            "title" => episode_params["title"], # From the form
-            "original_audio_url" => minio_url,
-            "processing_status" => "uploaded", # Initial status
-            "user_id" => current_user.id,
-            "podcast_id" => podcast_id_to_assign # MUST be a valid ID of an existing podcast
-          }
+          # Basic validation: ensure podcast_id_from_form is not nil or empty
+          # You might want more robust validation or rely on the changeset
+          if is_nil(podcast_id_from_form) or podcast_id_from_form == "" do
+            # This case should ideally be caught by `required` on the input
+            # or by the Ecto changeset validation.
+            {:noreply, put_flash(socket, :error, "Please select a podcast.")}
+          else
+            episode_attrs = %{
+              "title" => current_episode_title,
+              "original_audio_url" => minio_url,
+              "processing_status" => "uploaded", # Initial status
+              "user_id" => current_user.id,      # <<< --- CORRECTED LINE ---
+              "podcast_id" => podcast_id_from_form # Use the ID from the form (will be a string)
+            }
 
-          case Podcasts.create_episode(episode_attrs) do
-            {:ok, episode} ->
-              # No need to File.rm(temp_path) here, LiveView already did it.
-              {:noreply,
-               socket
-               |> put_flash(:info, "Episode '#{episode.title}' uploaded successfully!")
-               |> push_navigate(to: ~p"/podcasts/#{episode.podcast_id}/episodes/#{episode.id}")} # Example route
+            case Podcasts.create_episode(episode_attrs) do
+              {:ok, episode} ->
+                {:noreply,
+                 socket
+                 |> put_flash(:info, "Episode '#{episode.title}' uploaded successfully!")
+                 |> push_navigate(to: ~p"/podcasts/#{episode.podcast_id}/episodes/#{episode.id}")}
 
-            {:error, %Ecto.Changeset{} = changeset} ->
-              IO.inspect(changeset, label: "DB Create Episode Error")
-              # File is in MinIO. You might want to implement a cleanup for the S3 object here (advanced).
-              {:noreply,
-               socket
-               |> assign(:form, to_form(Map.put(changeset, :data, %Episode{podcast_id: podcast_id_to_assign}))) # Preserve podcast_id for form
-               |> put_flash(:error, "Episode metadata could not be saved. Please check errors.")}
+              {:error, %Ecto.Changeset{} = changeset} ->
+                IO.inspect(changeset, label: "DB Create Episode Error")
+
+                # Attempt to preserve the user's selection for podcast_id in the form upon error
+                # Ensure podcast_id_from_form is an integer if your schema expects it.
+                # Changeset data might be nil if the initial struct was empty and no changes were applied.
+                data_for_form = changeset.data || %PodcastMcp.Podcasts.Episode{}
+
+                podcast_id_as_int =
+                  cond do
+                    is_binary(podcast_id_from_form) && podcast_id_from_form != "" ->
+                      String.to_integer(podcast_id_from_form)
+                    is_integer(podcast_id_from_form) ->
+                      podcast_id_from_form
+                    true ->
+                      nil # Or a default/previous value if available
+                  end
+
+                data_with_attempted_podcast_id = Map.put(data_for_form, :podcast_id, podcast_id_as_int)
+                updated_form = to_form(Map.put(changeset, :data, data_with_attempted_podcast_id))
+
+                {:noreply,
+                socket
+                |> assign(:form, updated_form)
+                |> put_flash(:error, "Episode metadata could not be saved. Please check errors.")}
+            end
           end
 
         # Handling errors propagated from the consume_uploaded_entries callback

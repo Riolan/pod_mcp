@@ -8,6 +8,7 @@ defmodule PodcastMcp.Podcasts do
   alias PodcastMcp.Podcasts.Episode
   alias PodcastMcp.Podcasts.Podcast
   alias PodcastMcp.Accounts.Scope
+  alias PodcastMcp.Accounts.User
 
   @doc """
   Subscribes to scoped notifications about any podcast changes.
@@ -202,7 +203,7 @@ defmodule PodcastMcp.Podcasts do
     Episode.changeset(episode, attrs)
   end
 
-    @doc """
+  @doc """
   Lists all podcasts belonging to a given user.
   """
   def list_user_podcasts(%User{} = user) do
@@ -213,5 +214,21 @@ defmodule PodcastMcp.Podcasts do
     )
   end
 
+  @doc """
+  Creates a podcast with the given attributes.
+  Assumes `user_id` is present in the `attrs` map.
+  """
+  def create_podcast(attrs \\ %{}) do
+    %Podcast{}
+    |> Podcast.changeset(attrs) # Calls changeset/2 from PodcastMcp.Podcasts.Podcast
+    |> Repo.insert()
+  end
 
+  def list_episodes_for_podcast(%Podcast{} = podcast) do
+    Repo.all(
+      from e in Episode,
+      where: e.podcast_id == ^podcast.id,
+      order_by: [desc: e.inserted_at] # Example ordering
+    )
+  end
 end

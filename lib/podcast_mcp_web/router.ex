@@ -55,6 +55,7 @@ defmodule PodcastMcpWeb.Router do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
       live "/episodes/new", EpisodeLive.New, :new
+
     end
 
     post "/users/update-password", UserSessionController, :update_password
@@ -73,4 +74,33 @@ defmodule PodcastMcpWeb.Router do
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
   end
+
+
+   # Authenticated routes for podcast and episode management
+   scope "/", PodcastMcpWeb do
+    pipe_through [:browser, :require_authenticated_user] # Your auth plug
+
+    # New route for showing an individual episode:
+    # It's nested under a podcast conceptually, but for simplicity in LiveView routing,
+    # we can make podcast_id a param. Or you could truly nest it.
+    # Let's keep it simple for now.
+    live "/podcasts/:podcast_id/episodes/:id", EpisodeLive.Show, :show
+  end
+
+  # Enable LiveDashboard in development
+  #if Application.compile_env(:podcast_mcp, :dev_routes) do
+  #  # If you want to use the LiveDashboard in production, you should put
+  #  # it behind authentication and allow only admins to access it.
+  #  # If your application does not have an admins-only section yet,
+  #  # you can use Plug.BasicAuth to set up some basic authentication
+   # # as long as you are also using SSL (which you should anyway).
+   # import Phoenix.LiveDashboard.Router
+
+   # scope "/dev" do
+   #   pipe_through :browser
+
+  #    live_dashboard "/dashboard", metrics: PodcastMcpWeb.Telemetry
+  #    # forward "/mailbox", Plug.Swoosh.MailboxPreview # If using Swoosh
+ #   end
+ # end
 end

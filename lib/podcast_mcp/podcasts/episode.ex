@@ -6,31 +6,28 @@ defmodule PodcastMcp.Podcasts.Episode do
     field :title, :string
     field :original_audio_url, :string
     field :processing_status, :string
-    field :transcript_url, :string
-    field :generated_summary, :string
-    field :generated_timestamps, :map
-    #field :podcast_id, :id
-   # field :user_id, :id
+    field :transcript_url, :string       # For later use
+    field :generated_summary, :string    # For later use
+    field :generated_timestamps, :map    # For later use
 
-    field :audio, :any, virtual: true
+    field :audio, :any, virtual: true   # For the upload form
 
-     # Use belongs_to for associations
-     belongs_to :podcast, PodcastMcp.Podcasts.Podcast
-     belongs_to :user, PodcastMcp.Accounts.User
+    # Associations
+    belongs_to :podcast, PodcastMcp.Podcasts.Podcast
+    belongs_to :user, PodcastMcp.Accounts.User # Make sure PodcastMcp.Accounts.User is correct
 
     timestamps(type: :utc_datetime)
   end
 
   @doc false
-  def changeset(episode, attrs) do # Standard changeset/2 signature
+  def changeset(episode, attrs) do
     episode
     |> cast(attrs, [
-      # Fields allowed from forms/external input:
       :title,
       :podcast_id,
-      :user_id,
-      :audio,
-      # Internal fields - usually set programmatically, not directly cast from user input:
+      :user_id, # <<< --- ADD :user_id HERE ---
+      :audio,   # Virtual field for form
+      # Fields usually set programmatically after creation/processing:
       :original_audio_url,
       :processing_status,
       :transcript_url,
@@ -38,16 +35,15 @@ defmodule PodcastMcp.Podcasts.Episode do
       :generated_timestamps
     ])
     |> validate_required([
-        # Fields required to initially create an episode record:
-        :title,
-        :podcast_id,
-        :user_id
-      ])
-    # Ensures :podcast_id maps to a real Podcast
-    |> assoc_constraint(:podcast)
-    # Ensures :user_id maps to a real User
-    |> assoc_constraint(:user)
-    # Add other specific validations if needed (e.g., title length)
+      :title,
+      :podcast_id,
+      :user_id
+      # Add :original_audio_url here if it's always required at creation
+      # Add :processing_status here if it has a required initial value
+    ])
+    |> assoc_constraint(:podcast) # Validates podcast_id exists
+    |> assoc_constraint(:user)    # Validates user_id exists
+    # Add any other specific validations (e.g., title length)
     # Example: |> validate_length(:title, min: 3)
   end
 end
