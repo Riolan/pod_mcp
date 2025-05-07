@@ -33,6 +33,10 @@ defmodule PodcastMcp.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:ex_aws, "~> 2.4"},        # Or the latest version on Hex.pm
+      {:ex_aws_s3, "~> 2.5"},     # Or the latest version on Hex.pm
+      {:hackney, "~> 1.18"},      # HTTP client for ExAws
+      {:sweet_xml, "~> 0.7"},     # XML parser (ExAws S3 often uses XML
       {:pbkdf2_elixir, "~> 2.0"},
       {:phoenix, "~> 1.8.0-rc.0", override: true},
       {:phoenix_ecto, "~> 4.5"},

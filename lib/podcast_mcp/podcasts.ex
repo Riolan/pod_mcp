@@ -144,24 +144,74 @@ defmodule PodcastMcp.Podcasts do
 
     Podcast.changeset(podcast, attrs, scope)
   end
+  @doc """
+  Returns the list of episodes.
+  ## Examples
 
+      iex> list_episodes()
+      [%Episode{}, ...]
 
+  """
 
-   @doc """
-  Returns an `%Ecto.Changeset{}` for tracking episode changes.
+  def list_episodes do
+    Repo.all(Episode)
+  end
 
-  Typically used to build forms.
+  def get_episode!(id), do: Repo.get!(Episode, id)
+
+  @doc """
+  Creates an episode.
 
   ## Examples
 
-      iex> change_episode(%Episode{})
-      %Ecto.Changeset{data: %Episode{}}
+      iex> create_episode(%{field: value})
+      {:ok, %Episode{}}
 
+      iex> create_episode(%{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def create_episode(attrs \\ %{}) do
+    %Episode{}
+    |> Episode.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates an episode.
+  """
+  def update_episode(%Episode{} = episode, attrs) do
+    episode
+    |> Episode.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes an episode.
+  """
+  def delete_episode(%Episode{} = episode) do
+    Repo.delete(episode)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking episode changes.
+
+  Typically used to build forms.
   """
   def change_episode(%Episode{} = episode, attrs \\ %{}) do
     Episode.changeset(episode, attrs)
   end
 
+    @doc """
+  Lists all podcasts belonging to a given user.
+  """
+  def list_user_podcasts(%User{} = user) do
+    Repo.all(
+      from p in Podcast,
+      where: p.user_id == ^user.id,
+      order_by: [asc: p.title]
+    )
+  end
 
 
 end

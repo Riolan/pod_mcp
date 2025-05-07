@@ -86,3 +86,15 @@ config :mime, :types, %{
   # Add other custom types here if needed, for example:
   # "audio/aac" => ["aac"] # If .aac also causes issues later
 }
+
+
+config :ex_aws,
+  access_key_id: System.get_env("MINIO_ACCESS_KEY_ID") || "minioadmin",
+  secret_access_key: System.get_env("MINIO_SECRET_ACCESS_KEY") || "minioadmin",
+  region: System.get_env("MINIO_REGION") || "us-east-1" # MinIO isn't strict about regions
+
+config :ex_aws, :s3,
+  scheme: System.get_env("MINIO_SCHEME") || "http", # "http" for local, "https" for production with TLS
+  host: System.get_env("MINIO_HOST") || "localhost",
+  port: String.to_integer(System.get_env("MINIO_PORT") || "9000"),
+  path_style: true # Usually required for MinIO unless you've configured virtual host bucket addressing

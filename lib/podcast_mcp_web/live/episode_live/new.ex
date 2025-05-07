@@ -4,6 +4,8 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
 
   alias PodcastMcp.Podcasts
   alias PodcastMcp.Podcasts.Episode
+  alias ExAws.S3 # For S3 operations
+  alias MIME # For MIME type detection
   # Assuming phx.gen.auth setup includes an on_mount hook like UserAuth.fetch_current_user
   # which assigns `:current_user` to the socket if logged in.
 
@@ -51,12 +53,6 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
       >
       <.input field={@form[:title]} type="text" label="Episode Title" required />
 
-      <.input
-        field={@form[:audio]}
-        type="file"
-        label="Audio File"
-        required
-      />
 
       <div class="mt-4">
         <.live_file_input upload={@uploads.audio} class="hidden" />
@@ -106,39 +102,128 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
     {:noreply, assign(socket, :form, to_form(changeset))}
   end
 
+
+  # lib/podcast_mcp_web/live/episode_live/new.ex
   @impl true
   def handle_event("save", %{"episode" => episode_params}, socket) do
-    # ** IMPLEMENTATION PENDING **
-    # This is where the core logic will go:
-    # 1. Get current_user from assigns (assuming assigned in mount/on_mount)
-    #    user = socket.assigns.current_user
-    # 2. Determine the target podcast_id for this user.
-    #    - Does the user already have a podcast? Get its ID.
-    #    - If not, do we create one? Or show an error? (Requires more logic in Podcasts context)
-    #    - For now, we might hardcode/fetch a default podcast ID if known, or defer this part.
-    #    podcast_id = get_users_podcast_id(user) # Placeholder for needed logic
-    # 3. Consume the uploaded file entry from @uploads.audio
-    #    uploaded_files = consume_uploaded_entries(socket, :audio, fn %{path: path}, _entry -> ... end)
-    # 4. Inside the consume_uploaded_entries callback:
-    #    - Stream/Upload the file at `path` to MinIO using ExAws.S3 or Waffle.
-    #    - Get the MinIO object URL/key upon successful upload.
-    #    - Return {:ok, minio_url} from the callback.
-    # 5. If MinIO upload is successful (consume_uploaded_entries returns the list of {:ok, minio_url} tuples):
-    #    - Add the podcast_id and original_audio_url (from MinIO) to episode_params.
-    #    - Set initial processing_status (e.g., "uploaded").
-    #    - Call the context function to save the episode:
-    #      case Podcasts.create_episode(user, Map.put(episode_params, "original_audio_url", minio_url)) do
-    #        {:ok, episode} -> redirect(socket, to: ~p"/episodes/#{episode.id}") # Redirect to episode page (to be created)
-    #        {:error, changeset} -> re-render form with errors
-    #      end
-    # 6. Handle errors from file consumption or database saving.
+    current_scope = socket.assigns.current_scope
+    current_user = if current_scope, do: current_scope.user, else: nil
 
-    IO.inspect(episode_params, label: "Episode Params on Save (raw)")
-    IO.inspect(socket.assigns.uploads.audio, label: "Uploads Status")
+    if is_nil(current_user) do
+      IO.inspect("Access Denied: current_user is nil in handle_event/save")
+      {:noreply, put_flash(socket, :error, "You must be logged in to upload.")}
+    else
+      # consume_uploaded_entries will now attempt the S3 upload internally
+      # and return richer information or an error.
+      uploaded_file_results =
+        consume_uploaded_entries(socket, :audio, fn meta, entry ->
+          # S3 Upload logic is now INSIDE this callback
+          temp_path = meta.path # Path to the temporary file on the server
+          original_name = entry.client_name
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "Save action triggered - MinIO/DB logic not yet implemented.")}
+          bucket = System.get_env("MINIO_BUCKET") || "podcast-episodes"
+          extension = Path.extname(original_name)
+          unique_filename = "#{Ecto.UUID.generate()}#{extension}"
+          object_key = "episodes/#{current_user.id}/#{unique_filename}" # current_user is in lexical scope
+          content_type = MIME.from_path(original_name) || "application/octet-stream"
+
+          # Perform the S3 stream upload
+          case temp_path
+               |> ExAws.S3.Upload.stream_file() # File at temp_path exists here
+               |> ExAws.S3.upload(bucket, object_key, content_type: content_type)
+               |> ExAws.request() do
+            {:ok, _s3_response} ->
+              # S3 Upload Successful!
+              minio_scheme = System.get_env("MINIO_SCHEME") || "http"
+              minio_host = System.get_env("MINIO_HOST") || "localhost"
+              minio_port = System.get_env("MINIO_PORT") || "9000"
+              minio_url = "#{minio_scheme}://#{minio_host}:#{minio_port}/#{bucket}/#{object_key}"
+
+              # The temporary file (temp_path) will be cleaned up by LiveView
+              # automatically because we are returning {:ok, ...} from this callback.
+              # No need for File.rm(temp_path) manually for this.
+              {:ok, %{minio_url: minio_url, object_key: object_key, original_name: original_name}}
+
+            {:error, {status_code, s3_error_body}} ->
+              IO.inspect(s3_error_body, label: "S3 Upload HTTP Error inside consume #{status_code}")
+              {:error, {:s3_http_error, status_code}} # Propagate a structured error
+
+            {:error, s3_reason} ->
+              IO.inspect(s3_reason, label: "S3 Upload Error inside consume")
+              {:error, {:s3_error, s3_reason}} # Propagate a structured error
+          end
+        end)
+
+      # Now process the results from consume_uploaded_entries
+      case uploaded_file_results do
+        [] ->
+          # No file was selected or consumed properly (e.g., if consume_uploaded_entries itself had an issue before calling the callback)
+          # Or if an error was returned by the callback, it might appear here depending on LiveView version or if you map errors.
+          # For required validation, it's better to check before consume or based on `socket.assigns.uploads.audio.entries`.
+
+          # Check if a file was even attempted to be uploaded
+          if Enum.empty?(socket.assigns.uploads.audio.entries) do
+            original_changeset = socket.assigns.form.source
+            updated_changeset_with_error =
+              Ecto.Changeset.add_error(original_changeset, :audio, "can't be blank", validation: :required)
+            {:noreply,
+             socket
+             |> put_flash(:error, "Please select an audio file.")
+             |> assign(:form, to_form(updated_changeset_with_error))}
+          else
+            # An upload was attempted but failed during the S3 process within consume_uploaded_entries
+            # The flash message from that error path should already be set by how you handle the error tuple below.
+            # For now, just a generic message, but specific errors are better.
+            {:noreply, put_flash(socket, :error, "Failed to process the uploaded file.")}
+          end
+
+
+      # Since max_entries: 1, we expect a list with one result (or an error that led to an empty list handled above)
+        [%{minio_url: minio_url, object_key: _object_key, original_name: _original_name} | _] ->
+          # S3 Upload was successful, proceed to save to database
+
+          # --- CRITICAL: How to get podcast_id? ---
+          # This is a placeholder and NEEDS to be implemented or decided upon.
+          podcast_id_to_assign = 1 # TEMPORARY - REPLACE WITH REAL LOGIC
+
+          episode_attrs = %{
+            "title" => episode_params["title"], # From the form
+            "original_audio_url" => minio_url,
+            "processing_status" => "uploaded", # Initial status
+            "user_id" => current_user.id,
+            "podcast_id" => podcast_id_to_assign # MUST be a valid ID of an existing podcast
+          }
+
+          case Podcasts.create_episode(episode_attrs) do
+            {:ok, episode} ->
+              # No need to File.rm(temp_path) here, LiveView already did it.
+              {:noreply,
+               socket
+               |> put_flash(:info, "Episode '#{episode.title}' uploaded successfully!")
+               |> push_navigate(to: ~p"/podcasts/#{episode.podcast_id}/episodes/#{episode.id}")} # Example route
+
+            {:error, %Ecto.Changeset{} = changeset} ->
+              IO.inspect(changeset, label: "DB Create Episode Error")
+              # File is in MinIO. You might want to implement a cleanup for the S3 object here (advanced).
+              {:noreply,
+               socket
+               |> assign(:form, to_form(Map.put(changeset, :data, %Episode{podcast_id: podcast_id_to_assign}))) # Preserve podcast_id for form
+               |> put_flash(:error, "Episode metadata could not be saved. Please check errors.")}
+          end
+
+        # Handling errors propagated from the consume_uploaded_entries callback
+        [{:error, {:s3_http_error, status_code}} | _] ->
+          {:noreply, put_flash(socket, :error, "Failed to upload file to storage. HTTP Status: #{status_code}")}
+
+        [{:error, {:s3_error, _reason}} | _] ->
+          {:noreply, put_flash(socket, :error, "Failed to upload file to storage due to an S3 error.")}
+
+        # Catch-all for other unexpected outcomes from consume_uploaded_entries
+        _other_results ->
+          IO.inspect(_other_results, label: "Unexpected result from consume_uploaded_entries")
+          {:noreply, put_flash(socket, :error, "An unexpected error occurred during file processing.")}
+      end
+    end
   end
 
   # --- Helper Functions ---
