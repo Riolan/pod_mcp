@@ -52,6 +52,9 @@ defmodule PodcastMcpWeb.Router do
     live_session :require_authenticated_user, # Name of the session configuration
       on_mount: [{PodcastMcpWeb.UserAuth, :require_authenticated}] do # Hook to run on mount
 
+
+      live "/podcasts/new", PodcastLive.New, :new
+
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
       live "/episodes/new", EpisodeLive.New, :new

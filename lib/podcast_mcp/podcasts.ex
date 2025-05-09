@@ -133,6 +133,15 @@ defmodule PodcastMcp.Podcasts do
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking podcast changes.
+  This version is suitable for new podcasts or for edits where scope is not involved.
+  It calls the schema's changeset/2 function.
+  """
+  def change_podcast(%Podcast{} = podcast, attrs \\ %{}) do
+    Podcast.changeset(podcast, attrs)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking podcast changes.
 
   ## Examples
 
@@ -140,9 +149,7 @@ defmodule PodcastMcp.Podcasts do
       %Ecto.Changeset{data: %Podcast{}}
 
   """
-  def change_podcast(%Scope{} = scope, %Podcast{} = podcast, attrs \\ %{}) do
-    true = podcast.user_id == scope.user.id
-
+  def change_podcast(%PodcastMcp.Accounts.Scope{} = scope, %Podcast{} = podcast, attrs) do
     Podcast.changeset(podcast, attrs, scope)
   end
   @doc """
