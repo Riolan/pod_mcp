@@ -98,3 +98,31 @@ config :ex_aws, :s3,
   host: System.get_env("MINIO_HOST") || "localhost",
   port: String.to_integer(System.get_env("MINIO_PORT") || "9000"),
   path_style: true # Usually required for MinIO unless you've configured virtual host bucket addressing
+
+
+
+# Whisper ASR Service Configuration
+# This tells your Elixir application where the Whisper service (e.g., the Docker container)
+# is running and what endpoint to use for transcription.
+config :podcast_mcp, :whisper_service,
+  # The base URL of your Whisper ASR service.
+  # For local development, if your Whisper Docker container is exposing port 9000 on your host,
+  # and your host's IP address on your local network is 192.168.1.124 (as per your example).
+  # If running Phoenix and Whisper Docker on the same machine, "http://localhost:9000" is also common.
+  base_url: System.get_env("WHISPER_SERVICE_URL") || "http://192.168.1.124:9000",
+
+  # The specific path for the transcription endpoint on the Whisper service.
+  # Based on your previous message, the onerahmet/openai-whisper-asr-webservice uses "/asr".
+  transcribe_path: System.get_env("WHISPER_TRANSCRIBE_PATH") || "/asr",
+
+  # Default parameters you might want to send with each request,
+  # if the Whisper service supports them as query parameters or form data.
+  # These are examples; consult the specific API docs for your Whisper service.
+  # default_task: "transcribe", # "transcribe" or "translate"
+  # default_language: "en",    # e.g., "en", "es", "fr", or nil for auto-detect
+  # default_output_format: "json", # e.g., "json", "txt", "srt", "vtt"
+
+  # Timeout for HTTP requests to the Whisper service (in milliseconds).
+  # Transcription can take a while, especially for longer audio files.
+  # Adjust this based on your expected maximum audio length and Whisper service performance.
+  request_timeout: String.to_integer(System.get_env("WHISPER_REQUEST_TIMEOUT_MS") || "300000") # Default: 5 minutes (300,000 ms)

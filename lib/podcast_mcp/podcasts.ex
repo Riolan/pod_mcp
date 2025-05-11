@@ -150,6 +150,7 @@ defmodule PodcastMcp.Podcasts do
 
   """
   def change_podcast(%PodcastMcp.Accounts.Scope{} = scope, %Podcast{} = podcast, attrs) do
+    true = podcast.user_id == scope.user.id # Authorization check
     Podcast.changeset(podcast, attrs, scope)
   end
   @doc """

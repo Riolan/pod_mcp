@@ -66,7 +66,8 @@ defmodule PodcastMcp.MixProject do
       {:bandit, "~> 1.5"},
       {:timex, "~> 3.7"},
       {:amqp, "~> 4.0"},
-      {:mime, "~> 2.0"}
+      {:mime, "~> 2.0"},
+      {:finch, "~> 0.18"},
     ]
   end
 

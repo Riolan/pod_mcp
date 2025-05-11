@@ -17,7 +17,9 @@ defmodule PodcastMcp.Application do
       # Start to serve requests, typically the last entry
       PodcastMcpWeb.Endpoint,
       # Start our RabbitMQ Consumer
-      {PodcastMcp.RabbitMQ.Consumer, name: PodcastMcp.RabbitMQ.Consumer}
+      {PodcastMcp.RabbitMQ.Consumer, name: PodcastMcp.RabbitMQ.Consumer},
+
+      {Finch, name: PodcastMcp.Finch},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
