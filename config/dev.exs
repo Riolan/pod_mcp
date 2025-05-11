@@ -85,3 +85,29 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+
+# RabbitMQ Configuration
+config :podcast_mcp, :rabbit_mq,
+  # For development, connecting to RabbitMQ running in Docker on localhost
+  # Default RabbitMQ user/pass is guest/guest
+  url: System.get_env("RABBITMQ_URL") || "amqp://guest:guest@localhost:5672",
+  # You can also configure host, port, username, password, vhost separately
+  # host: System.get_env("RABBITMQ_HOST") || "localhost",
+  # port: String.to_integer(System.get_env("RABBITMQ_PORT") || "5672"),
+  # username: System.get_env("RABBITMQ_USER") || "guest",
+  # password: System.get_env("RABBITMQ_PASS") || "guest",
+  # vhost: System.get_env("RABBITMQ_VHOST") || "/",
+  # Name of the exchange where episode processing jobs will be published
+  exchange_name: "podcast_processing_exchange",
+  # Name of the queue for transcription tasks (workers will listen to this)
+  transcription_queue_name: "transcription_tasks_queue",
+  # Routing key for transcription tasks
+  transcription_routing_key: "episode.transcribe"
+
+# Example for production (config/prod.exs), using environment variables:
+# config :podcast_mcp, :rabbit_mq,
+#   url: System.get_env("RABBITMQ_URL"), # e.g., amqp://user:pass@your-rabbitmq-server.com:5672/your_vhost
+#   exchange_name: "podcast_processing_exchange",
+#   transcription_queue_name: "transcription_tasks_queue",
+#   transcription_routing_key: "episode.transcribe"

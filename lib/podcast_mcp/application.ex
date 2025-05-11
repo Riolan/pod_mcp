@@ -15,7 +15,9 @@ defmodule PodcastMcp.Application do
       # Start a worker by calling: PodcastMcp.Worker.start_link(arg)
       # {PodcastMcp.Worker, arg},
       # Start to serve requests, typically the last entry
-      PodcastMcpWeb.Endpoint
+      PodcastMcpWeb.Endpoint,
+      # Start our RabbitMQ Consumer
+      {PodcastMcp.RabbitMQ.Consumer, name: PodcastMcp.RabbitMQ.Consumer}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

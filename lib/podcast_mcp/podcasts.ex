@@ -165,7 +165,21 @@ defmodule PodcastMcp.Podcasts do
     Repo.all(Episode)
   end
 
+
+  @doc """
+  Gets a single episode by ID,
+  """
   def get_episode!(id), do: Repo.get!(Episode, id)
+
+
+    @doc """
+  Gets a single episode by ID, returning `nil` if not found.
+
+  """
+  def get_episode(id) do
+    Repo.get(Episode, id)
+  end
+
 
   @doc """
   Creates an episode.

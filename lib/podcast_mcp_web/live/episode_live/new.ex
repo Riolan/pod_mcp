@@ -5,10 +5,9 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
   alias PodcastMcp.Podcasts
   alias PodcastMcp.Podcasts.Episode
   alias PodcastMcp.Accounts.User
-  alias ExAws.S3 # For S3 operations
-  alias MIME # For MIME type detection
-  # Assuming phx.gen.auth setup includes an on_mount hook like UserAuth.fetch_current_user
-  # which assigns `:current_user` to the socket if logged in.
+  alias ExAws.S3
+  alias MIME
+
 
   @impl true
   def mount(_params, session, socket) do
@@ -75,6 +74,10 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
     end
 
     ~H"""
+    <.live_title default="Welcome" prefix="MyApp · ">
+      {assigns[:page_title]}
+    </.live_title>
+
     <.header>
       Upload New Episode
       <:subtitle>Select your audio file and give it a title.</:subtitle>
@@ -160,7 +163,6 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
   end
 
 
-  # lib/podcast_mcp_web/live/episode_live/new.ex
   @impl true
   def handle_event("save", %{"episode" => episode_params}, socket) do
     current_scope = socket.assigns.current_scope
@@ -260,10 +262,19 @@ defmodule PodcastMcpWeb.EpisodeLive.New do
 
             case Podcasts.create_episode(episode_attrs) do
               {:ok, episode} ->
+                # ---- NEW: Placeholder for Triggering Background Job ----
+                IO.inspect("Enqueue background job for episode ID: #{episode.id} - e.g., transcription")
+                PodcastMcp.RabbitMQ.Publisher.enqueue_transcription_job(episode.id)
+                # ---------------
+
+
                 {:noreply,
                  socket
                  |> put_flash(:info, "Episode '#{episode.title}' uploaded successfully!")
-                 |> push_navigate(to: ~p"/podcasts/#{episode.podcast_id}/episodes/#{episode.id}")}
+                 |> push_navigate(to: ~p"/podcasts/#{episode.podcast_id}/episodes/#{episode.id}")
+                }
+
+
 
               {:error, %Ecto.Changeset{} = changeset} ->
                 IO.inspect(changeset, label: "DB Create Episode Error")

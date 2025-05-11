@@ -88,7 +88,10 @@ defmodule PodcastMcpWeb.EpisodeLive.Show do
         <div class="mt-6">
           <h3 class="text-lg font-medium text-gray-900">Transcript</h3>
           <%!-- Logic to display transcript --%>
-          <p class="text-gray-700">Transcript will be shown here. Link: <.link href={@episode.transcript_url}><%= @episode.transcript_url %></.link></p>
+          <p class="text-gray-700">Transcript will be shown here. Link:
+          <.link href={@episode.transcript_url} target="_blank" rel="noopener noreferrer">
+            <%= @episode.transcript_url %>
+          </.link></p>
         </div>
       <% end %>
 
